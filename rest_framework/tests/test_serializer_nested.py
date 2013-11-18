@@ -318,16 +318,19 @@ class NestedModelSerializerUpdateTests(TestCase):
     def test_second_nested_level(self):
         john = models.Person.objects.create(name="john")
 
-        post = john.blogpost_set.create(title="Test blog post")
-        post.blogpostcomment_set.create(text="I hate this blog post")
-        post.blogpostcomment_set.create(text="I love this blog post")
+        post1 = john.blogpost_set.create(title="Test blog post")
+        comment1 = post1.blogpostcomment_set.create(text="I hate this blog post")
+        comment2 = post1.blogpostcomment_set.create(text="I love this blog post")
+
+        post2 = john.blogpost_set.create(title="Another post")
 
         class BlogPostCommentSerializer(serializers.ModelSerializer):
             class Meta:
                 model = models.BlogPostComment
+                fields = ('id', 'text')
 
         class BlogPostSerializer(serializers.ModelSerializer):
-            comments = BlogPostCommentSerializer(many=True, source='blogpostcomment_set')
+            comments = BlogPostCommentSerializer(many=True, source='blogpostcomment_set', allow_add_remove=True)
             class Meta:
                 model = models.BlogPost
                 fields = ('id', 'title', 'comments')
@@ -338,11 +341,35 @@ class NestedModelSerializerUpdateTests(TestCase):
                 model = models.Person
                 fields = ('id', 'name', 'age', 'posts')
 
-        serialize = PersonSerializer(instance=john)
-        deserialize = PersonSerializer(data=serialize.data, instance=john)
-        self.assertTrue(deserialize.is_valid())
+        data = {
+            "id": john.id,
+            "name": "john",
+            "posts": [{
+                "id": post1.id,
+                "title": "Test blog post",
+                "comments": [],
+            }, {
+                "id": post2.id,
+                "title": "Another post",
+                "comments": [{
+                    "id": comment1.id,
+                    "text": "I hate this blog post",
+                }, {
+                    "id": comment2.id,
+                    "text": "I love this blog post",
+                }],
+            }],
+        }
+
+        deserialize = PersonSerializer(data=data, instance=john)
+        self.assertTrue(deserialize.is_valid(), deserialize.errors)
 
         result = deserialize.object
         result.save()
-        self.assertEqual(result.id, john.id)
+        new_post1, new_post2 = result.blogpost_set.all()
+        self.assertEqual(new_post1.id, post1.id)
+        self.assertEqual(new_post2.id, post2.id)
+        self.assertEqual(len(new_post2.blogpostcomment_set.all()), 2)
+        self.assertEqual(len(new_post1.blogpostcomment_set.all()), 0)
+        assert False
 
