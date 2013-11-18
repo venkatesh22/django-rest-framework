@@ -371,5 +371,3 @@ class NestedModelSerializerUpdateTests(TestCase):
         self.assertEqual(new_post2.id, post2.id)
         self.assertEqual(len(new_post2.blogpostcomment_set.all()), 2)
         self.assertEqual(len(new_post1.blogpostcomment_set.all()), 0)
-        assert False
-
