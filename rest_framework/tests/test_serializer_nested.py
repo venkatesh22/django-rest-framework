@@ -364,8 +364,7 @@ class NestedModelSerializerUpdateTests(TestCase):
         deserialize = PersonSerializer(data=data, instance=john)
         self.assertTrue(deserialize.is_valid(), deserialize.errors)
 
-        result = deserialize.object
-        result.save()
+        result = deserialize.save()
         new_post1, new_post2 = result.blogpost_set.all()
         self.assertEqual(new_post1.id, post1.id)
         self.assertEqual(new_post2.id, post2.id)
