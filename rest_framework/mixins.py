@@ -41,6 +41,20 @@ def _get_validation_exclusions(obj, pk=None, slug_field=None, lookup_field=None)
 
     return [field.name for field in obj._meta.fields if field.name not in include]
 
+def get_organised_errors(err):
+    errors = {}
+    if isinstance(err, dict):
+        for k, v in err.items():
+            if isinstance(v, list):
+                for i in v:
+                    if isinstance(i, dict):
+                        error = get_organised_errors(i)
+                        errors.update(error)
+                    else:
+                        errors.update({k:v})
+            else:
+                errors.update({k:[v]})
+    return errors
 
 class CreateModelMixin(object):
     """
@@ -56,8 +70,8 @@ class CreateModelMixin(object):
             headers = self.get_success_headers(serializer.data)
             return Response(serializer.data, status=status.HTTP_201_CREATED,
                             headers=headers)
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        errors = get_organised_errors(serializer.errors)
+        return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
     def get_success_headers(self, data):
         try:
@@ -120,14 +134,16 @@ class UpdateModelMixin(object):
                                          files=request.FILES, partial=partial)
 
         if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            errors = get_organised_errors(serializer.errors)
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             self.pre_save(serializer.object)
         except ValidationError as err:
             # full_clean on model instance may be called in pre_save,
             # so we have to handle eventual errors.
-            return Response(err.message_dict, status=status.HTTP_400_BAD_REQUEST)
+            errors = get_organised_errors(err.message_dict)
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
         if self.object is None:
             self.object = serializer.save(force_insert=True)
